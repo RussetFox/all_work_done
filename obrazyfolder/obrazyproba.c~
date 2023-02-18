@@ -1,0 +1,331 @@
+#include<stdio.h>
+#include<string.h>
+#include<stdlib.h>
+
+#define MAX 512            /* Maksymalny rozmiar wczytywanego obrazu */
+#define DL_LINII 1024      /* Dlugosc buforow pomocniczych */
+
+/************************************************************************************
+ * Funkcja wczytuje obraz PGM z pliku do tablicy       	       	       	       	    *
+ *										    *
+ * \param[in] plik_we uchwyt do pliku z obrazem w formacie PGM			    *
+ * \param[out] obraz_pgm tablica, do ktorej zostanie zapisany obraz		    *
+ * \param[out] wymx szerokosc obrazka						    *
+ * \param[out] wymy wysokosc obrazka						    *
+ * \param[out] szarosci liczba odcieni szarosci					    *
+ * \return liczba wczytanych pikseli						    *
+ ************************************************************************************/
+
+
+/*______________________________FUNKCJA CZYTAJ___________________________________*/
+int czytaj(FILE *plik_we,int obraz_pgm[][MAX],int *wymx,int *wymy, int *szarosci)
+{
+  char buf[DL_LINII];      /* bufor pomocniczy do czytania naglowka i komentarzy */
+  int znak;                /* zmienna pomocnicza do czytania komentarzy */
+  int koniec=0;            /* czy napotkano koniec danych w pliku */
+  int i,j;
+
+  /*Sprawdzenie czy podano prawid�owy uchwyt pliku */
+  if (plik_we==NULL) {
+    fprintf(stderr,"Blad: Nie podano uchwytu do pliku\n");
+    return(0);
+  }
+
+  /* Sprawdzenie "numeru magicznego" - powinien by� P2 */
+  if (fgets(buf,DL_LINII,plik_we)==NULL)   /* Wczytanie pierwszej linii pliku do bufora */
+    koniec=1;                              /* Nie udalo sie? Koniec danych! */
+
+  if ( (buf[0]!='P') || (buf[1]!='2') || koniec) {  /* Czy jest magiczne "P2"? */
+    fprintf(stderr,"Blad: To nie jest plik PGM\n");
+    return(0);
+  }
+
+  /* Pominiecie komentarzy */
+  do {
+    if ((znak=fgetc(plik_we))=='#') {         /* Czy linia rozpoczyna sie od znaku '#'? */
+      if (fgets(buf,DL_LINII,plik_we)==NULL)  /* Przeczytaj ja do bufora                */
+	koniec=1;                   /* Zapamietaj ewentualny koniec danych */
+    }  else {
+      ungetc(znak,plik_we);                   /* Gdy przeczytany znak z poczatku linii */
+    }                                         /* nie jest '#' zwroc go                 */
+  } while (znak=='#' && !koniec);   /* Powtarzaj dopoki sa linie komentarza */
+                                    /* i nie nastapil koniec danych         */
+
+  /* Pobranie wymiarow obrazu i liczby odcieni szarosci */
+  if (fscanf(plik_we,"%d %d %d",wymx,wymy,szarosci)!=3) {
+    fprintf(stderr,"Blad: Brak wymiarow obrazu lub liczby stopni szarosci\n");
+    return(0);
+  }
+  /* Pobranie obrazu i zapisanie w tablicy obraz_pgm*/
+  for (i=0;i<*wymy;i++) {
+    for (j=0;j<*wymx;j++) {
+      if (fscanf(plik_we,"%d",&(obraz_pgm[i][j]))!=1) {
+	fprintf(stderr,"Blad: Niewlasciwe wymiary obrazu\n");
+	return(0);
+      }
+    }
+  }
+  return *wymx**wymy;   /* Czytanie zakonczone sukcesem    */
+}                       /* Zwroc liczbe wczytanych pikseli */
+
+
+
+/*_____________________________FUNKCJA ZAPISZ_________________________________*/
+int zapisz(FILE *plik_wy,int obraz_pgm[][MAX],int wymx,int wymy, int szarosci)
+{
+  int i,j;
+  if (plik_wy==NULL) {
+    fprintf(stderr,"Blad: Nie podano uchwytu do pliku\n");
+    return(0);
+  }
+  fprintf(plik_wy,"P2\n");
+  fprintf(plik_wy, "%d %d %d\n", wymx, wymy, szarosci);
+  for (i=0;i<wymy;i++) {
+    for (j=0;j<wymx;j++) {
+    (fprintf(plik_wy,"\n%d\n",(obraz_pgm[i][j]))!=1);//bez \n \n nie działa poprawnie(??)
+      }
+    }
+    fclose(plik_wy);
+  }
+
+
+
+/*__________________________FUNKCJA WYSWIETL___________________________________*/
+
+/* Wyswietlenie obrazu o zadanej nazwie za pomoca programu "display"   */
+void wyswietl(char *n_pliku)
+{
+  char polecenie[DL_LINII];      /* bufor pomocniczy do zestawienia polecenia */
+
+  strcpy(polecenie,"display ");  /* konstrukcja polecenia postaci */
+  strcat(polecenie,n_pliku);     /* display "nazwa_pliku" &       */
+  strcat(polecenie," &");
+  printf("%s\n",polecenie);      /* wydruk kontrolny polecenia */
+  system(polecenie);             /* wykonanie polecenia        */
+}
+
+
+
+/*_____________________________FUNKCJA NEGATYW_________________________________*/
+int negatyw(int obraz_pgm[] [MAX], int szarosci, int wymx, int wymy)
+{
+  int i,j;
+  for (i=0;i<wymy;i++) {
+    for (j=0;j<wymx;j++) {
+      obraz_pgm[i][j]=szarosci-obraz_pgm[i][j];
+      /*obrocenie wartosci pikseli do wartosci przeciwnej*/
+    }
+  }
+}
+
+
+
+/*_____________________________FUNKCJA PROGOWANIA_____________________________*/
+int progowanie(int obraz_pgm[][MAX], int szarosci, int wymx, int wymy)
+{
+  int i,j;
+  int prog;
+  printf("Podaj prog w wartosci liczbowej odpowiadajacej procentom: ");
+  scanf("%i", &prog);
+  prog=(szarosci*(prog*0.01));
+  for(i=0;i<wymy;i++)
+  {
+    for(j=0;j<wymy;j++)
+    {
+      if(obraz_pgm[i][j]<=prog)//przypisanie wartosci 0 pikselom <= progowi
+      {
+        obraz_pgm[i][j]=0;
+      }
+      else //dla wartosci wiekszej od progu pikselom przyp. wart. maks
+      {
+        obraz_pgm[i][j]=szarosci;
+      }
+    }
+  }
+}
+
+
+
+/*_________________________FUNKCJA KONTUROWANIA_______________________________*/
+int konturowanie(int obraz_pgm[][MAX],int szarosci, int wymx, int wymy)
+{
+  int i,j;
+  for(i=0; i<wymy; i++)
+  {
+    for(j=0; j<wymx; j++)
+    {
+      obraz_pgm[i][j]=abs(obraz_pgm[i+1][j]-obraz_pgm[i][j])+abs(obraz_pgm[i][j+1]-obraz_pgm[i][j]);
+    }
+  }
+}
+
+
+
+/*_____________________________FUNKCJA ROZMYCIE_______________________________*/
+int rozmycie(int obraz_pgm[][MAX],int szarosci, int wymx, int wymy)
+{
+  int i, j, promienRozmycia, wybor;
+  printf("Wybierz rodzaj rozmycia\n1-Pionowe\t2-Poziome\n");
+  printf("Twoj wybor: ");
+  scanf("%i", &wybor);
+  printf ("\nPodaj promien rozmycia: ");
+  scanf("%i", &promienRozmycia);
+  for(i=0; i<wymy; i++)
+  {
+    for(j=0; j<wymx; j++)
+    {
+      if(wybor==1)
+      {
+        obraz_pgm[i][j]=((obraz_pgm[i][j-promienRozmycia]+obraz_pgm[i][j]+obraz_pgm[i][j+promienRozmycia])/3);
+      }
+      else if(wybor==2)
+      {
+        obraz_pgm[i][j]=((obraz_pgm[i-promienRozmycia][j]+obraz_pgm[i][j]+obraz_pgm[i+promienRozmycia][j])/3);
+      }
+    }
+  }
+}
+
+
+int main() {
+  int obraz[MAX][MAX] ;
+  int wymx,wymy,odcieni;
+/*w tej czesci programu wszystkie zmienne opisywane wczesniej jako szarosci sa opisywane
+jako odcieni*/
+
+  int odczytano = 0;
+  FILE *plik;
+  FILE *plik_wy;
+  char nazwa[100];
+  char nazwaZapis[100];
+  int opcjaMenu;
+
+while (opcjaMenu!=9)
+{
+  printf ("Wybierz funkcje programu\n");
+  printf("[1] Wczytaj obraz\n");
+  printf("[2] Zapisz obraz\n");
+  printf("[3] Wyswietl obraz\n");
+  printf("[4] Negatyw\n");
+  printf("[5] Progowanie\n");
+  printf("[6] Konturowanie\n");
+  printf("[7] Rozmycie\n");
+  printf("[8] Maski\n");
+  printf("[9] Zakoncz dzialanie programu\n");
+  printf("Wybierz opcje: ");
+  scanf("%i", &opcjaMenu);
+
+  switch(opcjaMenu)
+  {
+  case 1:
+  /* Wczytanie zawartosci wskazanego pliku do pamieci */
+  printf("Podaj nazwe pliku: ");
+  scanf("%s",nazwa);
+  plik=fopen(nazwa,"r");
+
+  if (plik != NULL)
+  {       /* co spowoduje zakomentowanie tego warunku */
+    odczytano = czytaj(plik,obraz,&wymx,&wymy,&odcieni);
+    printf ("\n Wczytano obraz: %s\n\n", nazwa);
+  }
+  else
+  {
+    fprintf (stderr,"\n Nie mozna odczytac takiego pliku\n\n");
+  }
+  break;
+
+
+  case 2://Zapisanie obrazu
+  if (plik==NULL)/*dla braku wczytanego pliku nie zostanie wykonany zapis, wyskoczy komunikat*/
+  {
+    printf("\n Najpierw wczytaj plik\n\n");
+  }
+  else
+  {
+    printf("Podaj nazwę pliku do zapisu: ");
+    scanf("%s",nazwaZapis);/*Czytanie nazwy pod jaka chce sie zapisac plik*/
+    plik_wy=fopen(nazwaZapis, "w");
+    zapisz(plik_wy,obraz, wymx, wymy, odcieni);
+    printf("\n Zapisano plik jako: %s\n\n", nazwaZapis);
+  }
+  break;
+
+
+  case 3://Wyswietlenie obencego obrazu
+  if (plik==NULL)/*dla braku wczytanego pliku nie zostanie wykonany zapis, wyskoczy komunikat*/
+  {
+    printf("\n Najpierw wczytaj plik\n\n");
+  }
+  else
+  {
+    plik_wy=fopen("tempFile.pgm", "w");
+    zapisz(plik_wy, obraz, wymx, wymy, odcieni);
+    wyswietl("tempFile.pgm");
+    /*funkcja tworzy plik, do ktorego zapisuje obecne dane, wyswietla go
+    po czym usuwa owy plik*/
+  }
+  break;
+
+
+  case 4://Wykonanie negatywu
+  if (plik==NULL)/*dla braku wczytanego pliku nie zostanie wykonany zapis, wyskoczy komunikat*/
+  {
+    printf("\n Najpierw wczytaj plik\n\n");
+  }
+  else
+  {
+    negatyw(obraz, odcieni, wymx, wymy);
+    printf("\n Wykonano negatyw\n\n");
+  }
+  break;
+
+
+  case 5://Wykonanie progowania
+  if (plik==NULL)/*dla braku wczytanego pliku nie zostanie wykonany zapis, wyskoczy komunikat*/
+  {
+    printf("\n Najpierw wczytaj plik\n\n");
+  }
+  else
+  {
+    progowanie(obraz, odcieni, wymx, wymy);
+  }
+  break;
+
+
+  case 6://Wykonanie konturowania
+  if (plik==NULL)/*dla braku wczytanego pliku nie zostanie wykonany zapis, wyskoczy komunikat*/
+  {
+    printf("\n Najpierw wczytaj plik\n\n");
+  }
+  else
+  {
+    konturowanie(obraz, odcieni, wymx, wymy);
+    printf("\n Wykonano konturowanie\n\n");
+  }
+  break;
+
+
+  case 7://Wykonywanie rozmycia pionowego lub poziomego w zaleznosci od wybranej opcji
+  if (plik==NULL)/*dla braku wczytanego pliku nie zostanie wykonany zapis, wyskoczy komunikat*/
+  {
+    printf("\n Najpierw wczytaj plik\n\n");
+  }
+  else
+  {
+    rozmycie(obraz, odcieni, wymx, wymy);
+    printf("\n Wykonano wybrane rozmycie\n\n");
+  }
+  break;
+
+
+  case 8://Wykonanie funkcji maski
+  printf("\n Obecnie funkcja ta jest nieobsługiwana\n\n");
+  break;
+
+  default://Zakonczenie dzialania programu dla opcji 9
+  remove("tempFile);
+  printf("Zakończono działanie programu\n");
+  return 0;
+}
+}
+}
